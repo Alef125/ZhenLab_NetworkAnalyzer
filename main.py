@@ -1,6 +1,3 @@
-# This is a sample Python script.
-
-
 # from os import listdir
 from os.path import join
 import numpy as np
@@ -15,6 +12,10 @@ import ContactDistribution
 
 
 def extract_adjacency_matrices():
+    """
+    Saving adjacency matrices from CATMAID
+    :return: -
+    """
     project_ids = [98, 106, 121, 124, 125, 133, 135, 161, 186, 266]
     for project_id in project_ids:
         project_catmaid = PymaidInterface.Skeleton(project_id=project_id)
@@ -25,6 +26,10 @@ def extract_adjacency_matrices():
 
 
 def merge_left_and_right_adjacency_matrices():
+    """
+    Full matrix to L/R classes matrix
+    :return: -
+    """
     project_ids = [98, 106, 121, 124, 125, 133, 135, 161, 186, 266]
     for project_id in project_ids:
         adjacency_matrix_filepath = './Adjacency Mats/Project_' + str(project_id) + '.csv'
@@ -34,6 +39,10 @@ def merge_left_and_right_adjacency_matrices():
 
 
 def analyze_adjacency_matrices():
+    """
+    Set-theoretical analysis on two adjacency matrices
+    :return: -
+    """
     # matrices_folder = './Adjacency Mats/'
     matrices_folder = './Short Adj Mats/'
     # all_files = listdir(matrices_folder)
@@ -54,6 +63,10 @@ def analyze_adjacency_matrices():
 
 
 def plot_neuronal_components():
+    """
+    This function, plots the connections of a neuron
+    :return: -
+    """
     # project_ids = [98, 106, 121, 124, 125, 133, 135, 161, 186, 266]
     # connected_component = ['ALA', 'ASK', 'ADL', 'OLL', 'URB', 'IL1V', 'SMDV', 'URAV', 'RMDD', 'RMEL/R', 'ASH',
     #                        'BDU', 'RIM', 'ADF', 'AVJ', 'RIF', 'AIM', 'RIP', 'AVH', 'IL1D', 'RMH', 'ASJ', 'URYV',
@@ -73,7 +86,13 @@ def plot_neuronal_components():
 
 
 def plot_single_neuron():
-    PymaidInterface.draw_aligned_neuron(neuron_name='IL2V')
+    """
+    This function, plots a neuron in two aligned datasets
+    :return:
+    """
+    PymaidInterface.draw_aligned_neuron(neuron_name='IL2V',  # The neuron id
+                                        base_project_id=125,  # The first dataset (project_id)
+                                        other_project_id=186)  # The second dataset (project_id) (the aligned one)
     # neuron_morphology = PymaidInterface.NeuronMorphology(neuron_name='ASJ', project_id=266)
     # neuron_morphology.find_skeleton()
 
@@ -107,6 +126,10 @@ def analyse_synapses():
 
 
 def classify_neurons():
+    """
+    Classifying neurons: processing depth
+    :return: -
+    """
     neurons_classifier = NeuronsClassification.NeuronsClassifier(
         adjacency_matrix_filepath='./Short Adj Mats/Project_186.csv')
 
@@ -205,6 +228,10 @@ def synapses_and_contacts_trends():
 
 
 def compare_synapse_vs_contact_dist():
+    """
+    Fpr plotting the synapse_vs_contact graph
+    :return: -
+    """
     _ind = 5
     dataset_filepath = './Short Adj Mats/Project_125.csv'
     adj_analyzer = SynapseDistribution.AdjacencyAnalyzer(adjacency_matrix_filepath=dataset_filepath)
@@ -247,6 +274,9 @@ def compare_synapse_vs_contact_dist():
 
 
 if __name__ == '__main__':  # Todo: descriptions
+    """
+    Each line is used for a different analysis / graph :))
+    """
     # extract_adjacency_matrices()
     # merge_left_and_right_adjacency_matrices()
     # analyze_adjacency_matrices()
