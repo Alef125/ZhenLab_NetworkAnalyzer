@@ -361,6 +361,30 @@ def points_to_coordinates(list_of_points: list):
     return _xs, _ys, _zs
 
 
+def merge_left_and_right(adjacency_matrix_filepath: str, filepath_to_save: str) -> None:
+    """
+    This function gets the adjacency_matrix of full neurons, and makes the adjacency_matrix for classes
+        (L/R pairs together)
+    :param adjacency_matrix_filepath: Filepath for the full adjacency_matrix
+    :param filepath_to_save: Filepath to save the shrunk adjacency_matrix
+    :return: -
+    """
+    adjacency_matrix = pd.read_csv(adjacency_matrix_filepath, index_col=[0])
+    all_neurons_names = adjacency_matrix.columns.tolist()
+    abr_neurons_names = list(set(LR_DICT.values()))
+    num_abr_neurons = len(abr_neurons_names)
+    small_adj_matrix = pd.DataFrame(np.zeros(shape=(num_abr_neurons, num_abr_neurons)),
+                                    index=abr_neurons_names,
+                                    columns=abr_neurons_names)
+    for pre_neuron in all_neurons_names:
+        for post_neuron in all_neurons_names:
+            abr_pre_neuron = LR_DICT[pre_neuron]
+            abr_post_neuron = LR_DICT[post_neuron]
+            our_connection = adjacency_matrix.loc[pre_neuron][post_neuron]
+            small_adj_matrix.loc[abr_pre_neuron][abr_post_neuron] += our_connection
+    small_adj_matrix.to_csv(filepath_to_save)
+
+
 def get_neuron_name_from_id(neuron_id: int) -> str:
     """
     (Must be modified, as the usage of "pymaid" project_id is ambiguous)
@@ -714,6 +738,11 @@ def find_alignment_transform(pin_points: list, base_points: list,
 
 
 class CatmaidProject:
+    """
+    This class, keeps any desirable number of neurons in a specific project.
+    Besides, one can align all the positional information with another project,
+        using get_neuron_aligned_skeleton or get_neuron_aligned_connectors.
+    """
     def __init__(self, project_id: int):
         self.project_id = project_id
         self.pin_neurons = [NeuronMorphology(neuron_name=pin_neuron, project_id=project_id)
@@ -727,6 +756,10 @@ class CatmaidProject:
         self.neurons = {}
 
     def get_pin_point(self) -> list:
+        """
+        self.pin_points getter
+        :return: self.pin_points
+        """
         return self.pin_points
 
     # def change_points(self, _points):
@@ -738,6 +771,16 @@ class CatmaidProject:
     #     return new_points
 
     def alignment_transform(self, base_pin_points: list, transformations: dict = None):
+        """
+        This method, find the transformation to align pin_points of this project to base_pin_points,
+           and fills the self.transform
+           This method also plots the base_pin_points and the self.pin_point
+        :param base_pin_points: A list of (x, y, z)s for PIN_NEURONS, which we try to align self.pin_points on them
+        :param transformations: (If applicable) extra non-affine transformations,
+            including 'h_mirror' (horizontal flip), 'v_mirror' (vertical flip), 'diag_1' (diagonal flip, //),
+            'diag_2' (diagonal flip, \\)
+        :return: -
+        """
         # ######################################
         if transformations is None:
             transformations = {'h_mirror': False, 'v_mirror': False,
@@ -772,15 +815,33 @@ class CatmaidProject:
         plt.show()
 
     def add_neuron(self, neuron_name: str):
+        """
+        Use this function to tell the class to keep the 3D information of a desired neuron, neuron_name
+        :param neuron_name: The name of the neuron to be stored in the class
+        :return: -
+        """
         self.neurons[neuron_name] = NeuronMorphology(neuron_name=neuron_name, project_id=self.project_id)
 
     def get_neuron_aligned_skeleton(self, neuron_name: str):
+        """
+        This function, returns the aligned skeleton of neuron_name
+        :param neuron_name: The name of the desired neuron
+        :return: aligned_skeleton
+        """
         non_aligned_skeleton = self.neurons[neuron_name].get_skeleton()
         [non_aligned_skeleton.append(_pin_point) for _pin_point in self.pin_points]  # Also, showing pin-points
         aligned_skeleton = [self.transform.transform_point(point=_point) for _point in non_aligned_skeleton]
         return aligned_skeleton
 
     def get_neuron_aligned_connectors(self, neuron_name: str):
+        """
+        This method, returns the aligned positioned of the neuron_name's connectors (synapses)
+        :param neuron_name: The name of the desired neuron
+        :return: aligned_sending_connectors (positions of sending synapses),
+                 sending_labels (name of the post-synaptic synapses, matching the order of sending_connectors),
+                 aligned_receiving_connectors (positions of receiving synapses),
+                 receiving_labels (name of the pre-synaptic synapses, matching the order of receiving_connectors)
+        """
         non_aligned_sending_connectors, sending_labels, non_aligned_receiving_connectors, receiving_labels = \
             self.neurons[neuron_name].get_connectors()
         aligned_sending_connectors = [self.transform.transform_point(point=_point)
@@ -790,6 +851,7 @@ class CatmaidProject:
         return aligned_sending_connectors, sending_labels, aligned_receiving_connectors, receiving_labels
 
 
+# Default 'h_mirror', 'v_mirror', 'diag_1', 'diag_2' transformations
 PROJECTS_TRANSFORMS = {124: {'h_mirror': False, 'v_mirror': False, 'diag_1': False, 'diag_2': False},  # L1, 0h
                        161: {'h_mirror': False, 'v_mirror': False, 'diag_1': False, 'diag_2': False},  # L1, 5h
                        121: {'h_mirror': True, 'v_mirror': False, 'diag_1': False, 'diag_2': False},  # L1, 8h
@@ -805,6 +867,20 @@ PROJECTS_TRANSFORMS = {124: {'h_mirror': False, 'v_mirror': False, 'diag_1': Fal
 
 
 def get_labels_intersection(labels_1: list, labels_2: list):
+    """
+    This function, finds the similar and different neurons between labels_1 and labels_2
+    :param labels_1: List of neurons on each synapse. Each element could be like 'n1,n2', means n1 and n2 neurons
+                are the targets of a single synapse
+    :param labels_2: Similar to labels_1
+    :return: sharing_labels_1 (similar neurons between labels_1 and labels_2, but is a list with the similar length
+                                to labels_1, where non-similar neurons are replaced with 'NULL'),
+             exclusive_labels_1 (neurons in labels_1 but not in labels_2, which is a list with the similar length
+                                to labels_1, where similar neurons are replaced with 'NULL'),
+             sharing_labels_2 (similar neurons between labels_1 and labels_2, but is a list with the similar length
+                                to labels_2, where non-similar neurons are replaced with 'NULL'),
+             exclusive_labels_2 (neurons in labels_2 but not in labels_1, which is a list with the similar length
+                                to labels_2, where similar neurons are replaced with 'NULL')
+    """
     expanded_labels_1 = []
     for _label in labels_1:
         expanded_labels_1 += _label.split(',')
@@ -860,6 +936,18 @@ def get_labels_intersection(labels_1: list, labels_2: list):
 
 
 def filter_connections(connection_coordinates: list, sharing_labels: list, exclusive_labels: list):
+    """
+    This function, separates connection_coordinates to sharing_coordinates and exclusive_coordinates,
+            based on sharing_labels and exclusive_labels
+    :param connection_coordinates: The (x, y, z)s for all the connections
+    :param sharing_labels: A list defining connection similar to another neuron
+    :param exclusive_labels: A list defining connection different to another neuron
+        All these lists have the same length, and irrelevant elements are replaced with 'NULL'
+    :return: sharing_coordinates (coordinates only for the sharing connections),
+             filtered_sharing_labels (labels only for the sharing connections),
+             exclusive_coordinates (coordinates only for the exclusive connections),
+             filtered_exclusive_labels (labels only for the exclusive connections)
+    """
     sharing_coordinates = []
     exclusive_coordinates = []
     num_points = len(connection_coordinates)
@@ -876,6 +964,11 @@ def filter_connections(connection_coordinates: list, sharing_labels: list, exclu
 
 
 def list_to_count_dict(list_of_items: list) -> dict:
+    """
+    This function, transforms a list to a dict, with elements counting as values
+    :param list_of_items: A list with repetitive values
+    :return: counts dict
+    """
     counts = dict()
     for _item in list_of_items:
         counts[_item] = counts.get(_item, 0) + 1
@@ -888,6 +981,24 @@ def plot_neuron(dataset_name_1, dataset_name_2, plot_title,
                 receiving_connectors_1, receiving_labels_1,
                 sending_connectors_2, sending_labels_2,
                 receiving_connectors_2, receiving_labels_2):
+    """
+    This function, plots a neuron of two different worms,
+        and identifies all the sharing and exclusive connections
+    :param dataset_name_1: Dataset 1 name (to be shown in the figure)
+    :param dataset_name_2: Dataset 2 name (to be shown in the figure)
+    :param plot_title: Title of the plot
+    :param neuron_skeleton_1: List of (x, y, z)s for the first neuron's skeleton
+    :param neuron_skeleton_2: List of (x, y, z)s for the second neuron's skeleton
+    :param sending_connectors_1: List of (x, y, z)s for the first neuron's sending synapses
+    :param sending_labels_1: List of labels for the first neuron's sending synapses
+    :param receiving_connectors_1: List of (x, y, z)s for the first neuron's receiving synapses
+    :param receiving_labels_1: List of labels for the first neuron's sending synapses
+    :param sending_connectors_2: List of (x, y, z)s for the second neuron's sending synapses
+    :param sending_labels_2: List of labels for the second neuron's sending synapses
+    :param receiving_connectors_2: List of labels for the second neuron's sending synapses
+    :param receiving_labels_2: List of labels for the first neuron's sending synapses
+    :return: -
+    """
     fig = plt.figure()
     ax = plt.axes(projection='3d')
 
@@ -931,12 +1042,25 @@ def plot_neuron(dataset_name_1, dataset_name_2, plot_title,
     plt.show()
 
 
-def draw_aligned_neuron(neuron_name: str):
-    project_id_1 = 125  # Should be one of [124, 161, 98*, 125, 133]
-    dataset_name_1 = 'L3'
-    project_id_2 = 186  # Good: 186; *** Put the transforming one here ***
-    dataset_name_2 = 'daf-2'
-    base_project = CatmaidProject(project_id=project_id_1)
+DATASET_NAMES = {124: 'L1(0h)', 161: 'L1(5h)', 121: 'L1(8h)', 98: 'L1(16h)', 125: 'L3', 186: 'daf-2'}
+
+
+def draw_aligned_neuron(neuron_name: str,
+                        base_project_id: int = 125,
+                        other_project_id: int = 186):
+    """
+    [Main function]
+    This function, handles aligning projects with ids base_project_id and other_project_id,
+       and draws the neuron with name neuron_name with all the connections (synapses)
+    :param neuron_name: The name of the neuron to be drawn
+    :param base_project_id: The id for the base_project
+    :param other_project_id: The id for the other project (the one that will be aligned)
+    :return: -
+    """
+    # base_project_id Should be one of [124, 161, 98*, 125, 133]
+    dataset_name_1 = DATASET_NAMES[base_project_id]
+    dataset_name_2 = DATASET_NAMES[other_project_id]
+    base_project = CatmaidProject(project_id=base_project_id)
     base_project.add_neuron(neuron_name=neuron_name)
     base_project_pin_points = base_project.get_pin_point()
     # #######################################################
@@ -945,9 +1069,10 @@ def draw_aligned_neuron(neuron_name: str):
     sending_connectors_1, sending_labels_1, receiving_connectors_1, receiving_labels_1 = \
         base_project.get_neuron_aligned_connectors(neuron_name=neuron_name)
     # ################################################
-    other_project = CatmaidProject(project_id=project_id_2)
+    # other_project_id -> Good: 186; *** Put the transforming one here ***
+    other_project = CatmaidProject(project_id=other_project_id)
     other_project.alignment_transform(base_pin_points=base_project_pin_points,
-                                      transformations=PROJECTS_TRANSFORMS[project_id_2])
+                                      transformations=PROJECTS_TRANSFORMS[other_project_id])
     other_project.add_neuron(neuron_name=neuron_name)
     # ################################################
     neuron_skeleton_2 = other_project.get_neuron_aligned_skeleton(neuron_name=neuron_name)
@@ -994,20 +1119,3 @@ def draw_aligned_neuron(neuron_name: str):
                 sending_connectors_2=send_exclusive_coord_2, sending_labels_2=send_exclusive_labels_2,
                 receiving_connectors_2=rec_exclusive_coord_2, receiving_labels_2=rec_exclusive_labels_2)
     # ################################################
-
-
-def merge_left_and_right(adjacency_matrix_filepath: str, filepath_to_save: str) -> None:
-    adjacency_matrix = pd.read_csv(adjacency_matrix_filepath, index_col=[0])
-    all_neurons_names = adjacency_matrix.columns.tolist()
-    abr_neurons_names = list(set(LR_DICT.values()))
-    num_abr_neurons = len(abr_neurons_names)
-    small_adj_matrix = pd.DataFrame(np.zeros(shape=(num_abr_neurons, num_abr_neurons)),
-                                    index=abr_neurons_names,
-                                    columns=abr_neurons_names)
-    for pre_neuron in all_neurons_names:
-        for post_neuron in all_neurons_names:
-            abr_pre_neuron = LR_DICT[pre_neuron]
-            abr_post_neuron = LR_DICT[post_neuron]
-            our_connection = adjacency_matrix.loc[pre_neuron][post_neuron]
-            small_adj_matrix.loc[abr_pre_neuron][abr_post_neuron] += our_connection
-    small_adj_matrix.to_csv(filepath_to_save)
