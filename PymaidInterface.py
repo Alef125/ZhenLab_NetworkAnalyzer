@@ -263,6 +263,11 @@ class Skeleton:  # Todo: merge with NeuronMorphology
         print("Dataset " + str(self.project_id) + " Successfully saved")
 
     def plot_component(self, list_of_neurons: list):
+        """
+        This methods, plots the skeleton for the neurons in list_of_neurons
+        :param list_of_neurons: List of neuron's names to be plotted
+        :return: -
+        """
         cnt = 0
         fig = plt.figure()
         ax = plt.axes(projection='3d')
@@ -294,6 +299,12 @@ class Skeleton:  # Todo: merge with NeuronMorphology
         plt.show()
 
     def plot_connectors(self, list_of_pairs: list):
+        """
+        This method, plots the 3D distribution of contactors (synapses)
+            between neuronal pair inside list_of_pairs
+        :param list_of_pairs: List of neuronal pairs: [(pre-synaptic, post-synaptic)]
+        :return: -
+        """
         x_list = []
         y_list = []
         z_list = []
@@ -337,6 +348,11 @@ class Skeleton:  # Todo: merge with NeuronMorphology
 
 
 def points_to_coordinates(list_of_points: list):
+    """
+    This function, separates x, y, z coordinates from a list of points in (x, y, z) format
+    :param list_of_points: [(x, y, z)]
+    :return: Separated coordinates
+    """
     _xs, _ys, _zs = [], [], []
     for _point in list_of_points:
         _xs.append(_point[0])
@@ -346,6 +362,11 @@ def points_to_coordinates(list_of_points: list):
 
 
 def get_neuron_name_from_id(neuron_id: int) -> str:
+    """
+    (Must be modified, as the usage of "pymaid" project_id is ambiguous)
+    :param neuron_id: The id of the desired neuron
+    :return: Name of the desired neuron
+    """
     all_names = []
     _neuron_info = pymaid.get_neuron(neuron_id).to_dataframe()
     for _ind, _sub_neuron in _neuron_info.iterrows():  # Mainly L & R
@@ -386,7 +407,29 @@ def is_inside_nerve_ring(skeleton_tree: pd.DataFrame,
 
 
 class NeuronMorphology:
+    """
+    This class, stores the 3D morphological information of a neuron,
+        including the positions of: skeleton, cell body, connectors (synapses)
+    """
     def __init__(self, neuron_name: str, project_id: int):
+        """
+        :param neuron_name: Name of the neuron
+        :param project_id: The project_id in which we are looking at the neuron
+
+        Internal features:
+        cell_body_center:   For a single neuron: the position of the cell body
+        cell_body_center_L: For a neuronal class (L/R pair): the position of the left cell body
+        cell_body_center_R: For a neuronal class (L/R pair): the position of the right cell body
+
+        skeleton: List of skeleton points
+        sending_connectors: List of positions of the sending synapses
+        sending_connectors_labels: The label of sending synapses (i.e., sent to which post-synaptic neuron)
+        receiving_connectors: List of positions of the receiving synapses
+        receiving_connectors_labels: The label of receiving synapses (i.e., received from which pre-synaptic neuron)
+
+        nerve_ring_starts: The id of a skeleton node, which identifies the nerve ring beginning
+        nerve_ring_ends: The id of a skeleton node, which identifies the nerve ring ending
+        """
         pymaid.CatmaidInstance(
             server='https://zhencatmaid.com/',
             api_token='c48243e19b85edf37345ced8049ce5d6c5802412',
@@ -408,6 +451,10 @@ class NeuronMorphology:
         self.nerve_ring_ends = None
 
     def find_skeleton(self):
+        """
+        Filling the self.skeleton with skeleton nodes' positions
+        :return: -
+        """
         _neuron_info = pymaid.get_neuron(self.neuron_name).to_dataframe()
         """
         columns: ['neuron_name', 'skeleton_id', 'nodes', 'connectors', 'tags']
@@ -418,6 +465,7 @@ class NeuronMorphology:
         for _ind, _sub_neuron in _neuron_info.iterrows():  # Mainly L & R
             _sub_neuron_tags = _sub_neuron['tags']
             """
+            columns:
             ['ends', 'dendrite_starts', 'not a branch', 'TODO', 'nerve_ring_ends', 'nerve_ring_starts', 'nucleus']
             """
             _sub_neuron_name = refine_neuron_name(_sub_neuron['neuron_name'])
@@ -479,15 +527,31 @@ class NeuronMorphology:
         # plt.show()
 
     def get_cell_body_center(self):
+        """
+        self.cell_body_center getter
+        :return: -
+        """
         if not self.cell_body_center:
             self.find_skeleton()
         return self.cell_body_center
 
     def get_skeleton(self):
+        """
+        self.skeleton getter
+        :return:
+        """
         self.find_skeleton()
         return self.skeleton
 
     def find_connectors(self):
+        """
+        This method, fills the connectors features:
+            self.sending_connectors
+            self.sending_connectors_labels
+            self.receiving_connectors
+            self.receiving_connectors_labels
+        :return: -
+        """
         _neuron_info = pymaid.get_neuron(self.neuron_name).to_dataframe()
         """
         columns: ['neuron_name', 'skeleton_id', 'nodes', 'connectors', 'tags']
@@ -534,18 +598,41 @@ class NeuronMorphology:
                 #     labels.append(str(pre_neuron_name) + "," + str(post_neuron_name))
 
     def get_connectors(self):
+        """
+        Connecots features getter (mind the order)
+        :return: -
+        """
         self.find_connectors()
         return self.sending_connectors, self.sending_connectors_labels, \
             self.receiving_connectors, self.receiving_connectors_labels
 
 
 class PointTransformer:
+    """
+    This class, keeps an affine transformation, and can be applied on a point
+    """
     def __init__(self,
                  scale_x: float, shift_x: float,
                  scale_y: float, shift_y: float,
                  scale_z: float, shift_z: float,
                  h_mirror: bool = False, v_mirror: bool = False,
                  diag_1: bool = False, diag_2: bool = False):
+        """
+        For an affine transformation, we have:
+            x' = a1 x + b1
+            y' = a2 y + b2
+            z' = a3 z + b3
+        :param scale_x: a1
+        :param shift_x: b1
+        :param scale_y: a2
+        :param shift_y: b2
+        :param scale_z: a3
+        :param shift_z: b3
+        :param h_mirror: Whether a horizontal flip is necessary before the affine transformation
+        :param v_mirror: Whether a vertical flip is necessary before the affine transformation
+        :param diag_1: Whether a diagonal flip is necessary before the affine transformation (\\)
+        :param diag_2: Whether a diagonal flip is necessary before the affine transformation (//)
+        """
         self.scale_x = scale_x
         self.shift_x = shift_x
         self.scale_y = scale_y
@@ -559,6 +646,11 @@ class PointTransformer:
         self.diag_2 = diag_2
 
     def transform_point(self, point):
+        """
+        Method to apply the transformation
+        :param point: The point to be transformed
+        :return: The transformed point
+        """
         x_point, y_point, z_point = point[0], point[1], point[2]
         # ####### Pre process ########
         if self.h_mirror:
@@ -580,6 +672,16 @@ class PointTransformer:
 def find_alignment_transform(pin_points: list, base_points: list,
                              h_mirror: bool = False, v_mirror: bool = False,
                              diag_1: bool = False, diag_2: bool = False) -> PointTransformer:
+    """
+    This finction, find an affine transformation to fit pin_points to base_points
+    :param pin_points: The points to be transformed (input points)
+    :param base_points: Target of transformation (target points)
+    :param h_mirror: Whether a horizontal flip is necessary before the affine transformation
+    :param v_mirror: Whether a vertical flip is necessary before the affine transformation
+    :param diag_1: Whether a diagonal flip is necessary before the affine transformation (\\)
+    :param diag_2: Whether a diagonal flip is necessary before the affine transformation (//)
+    :return: A PointTransformer object, defining the desired transformation between these set of points
+    """
     pin_points_x, pin_points_y, pin_points_z = points_to_coordinates(pin_points)
     base_points_x, base_points_y, base_points_z = points_to_coordinates(base_points)
     # ####### Pre process ########
